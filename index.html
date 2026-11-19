@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Checklists">
+<meta name="theme-color" content="#0b1220">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Aircraft Checklists</title>
+<style>
+:root{
+  --bg:#f2f2f7; --card:#ffffff; --text:#111114; --muted:#6b6b72; --line:#d9d9de;
+  --accent:#0a66d8; --green:#1d9a45; --done-bg:#dcf2e2; --done-text:#647468;
+  --red:#cf2f2f; --bar:rgba(248,248,250,.94); --box:#a3a3ab; --sel:#e6efff;
+  --row-font:18px; --row-min:56px; --box-size:34px;
+}
+:root[data-theme="night"]{
+  --bg:#000; --card:#141416; --text:#e8e8ea; --muted:#8c8c93; --line:#2a2a2f;
+  --accent:#5aa2ff; --green:#3ccf6a; --done-bg:#0e2a17; --done-text:#6f8b75;
+  --red:#ff5b55; --bar:rgba(16,16,18,.94); --box:#5d5d64; --sel:#16243b;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="day"]){
+    --bg:#000; --card:#141416; --text:#e8e8ea; --muted:#8c8c93; --line:#2a2a2f;
+    --accent:#5aa2ff; --green:#3ccf6a; --done-bg:#0e2a17; --done-text:#6f8b75;
+    --red:#ff5b55; --bar:rgba(16,16,18,.94); --box:#5d5d64; --sel:#16243b;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:16px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  -webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);
+  border-radius:10px;padding:10px 12px;width:100%}
+#app{min-height:100dvh}
+
+/* ---------- top bar ---------- */
+.bar{position:sticky;top:0;z-index:10;background:var(--bar);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 10px) 6px calc(env(safe-area-inset-left) + 10px);
+  display:flex;align-items:center;gap:8px;min-height:52px}
+.bar .title{flex:1;min-width:0;text-align:center;font-weight:650;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .left,.bar .right{display:flex;gap:4px;align-items:center;flex:0 0 auto}
+.bar .left{min-width:70px}.bar .right{min-width:70px;justify-content:flex-end}
+.tb{color:var(--accent);font-size:16px;padding:9px 8px;border-radius:9px;white-space:nowrap}
+.tb:active{background:var(--sel)}
+.bar.emer{border-bottom:3px solid var(--red)}
+.bar.emer .title{color:var(--red)}
+
+/* ---------- generic lists ---------- */
+.page{padding:14px calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 30px) calc(env(safe-area-inset-left) + 14px);max-width:760px;margin:0 auto}
+.group-h{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:18px 6px 6px}
+.group{background:var(--card);border-radius:14px;overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px 14px;min-height:60px;border-bottom:1px solid var(--line)}
+.li:last-child{border-bottom:0}
+.li:active{background:var(--sel)}
+.li .main{flex:1;min-width:0}
+.li .t{font-size:18px;font-weight:600}
+.li .s{font-size:14px;color:var(--muted);margin-top:2px}
+.li .chev{color:var(--muted);font-size:20px}
+.li .badge{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.li .badge.ok{color:var(--green);font-weight:700}
+.li.emer .t{color:var(--red)}
+.btn{display:block;width:100%;text-align:left;padding:15px 14px;color:var(--accent);background:var(--card);border-radius:14px;margin-top:10px;font-size:17px}
+.btn.danger{color:var(--red)}
+.btn:active{background:var(--sel)}
+.note{font-size:13px;color:var(--muted);margin:8px 6px}
+.mini{font-size:15px;padding:8px 10px;border-radius:8px;color:var(--accent)}
+.mini.danger{color:var(--red)}
+.mini:active{background:var(--sel)}
+
+/* ---------- progress ---------- */
+.prog{height:5px;background:var(--line);position:relative}
+.prog i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);transition:width .25s}
+.prog.ok i{background:var(--green)}
+
+/* ---------- checklist (narrow: iPhone / split view) ---------- */
+.cl{padding:8px calc(env(safe-area-inset-right) + 10px) calc(env(safe-area-inset-bottom) + 40px) calc(env(safe-area-inset-left) + 10px);max-width:820px;margin:0 auto}
+.sum{display:flex;justify-content:space-between;align-items:center;padding:8px 6px;font-size:15px;color:var(--muted)}
+.sum b{color:var(--text)}
+.sum.ok b{color:var(--green)}
+.sec{background:var(--card);border-radius:14px;margin:10px 0;overflow:hidden;scroll-margin-top:70px}
+.sec-h{display:flex;align-items:center;gap:6px;padding:4px 6px 4px 12px;border-bottom:1px solid var(--line);min-height:56px}
+.sec.collapsed .sec-h{border-bottom:0}
+.sec-t{flex:1;display:flex;align-items:center;gap:10px;text-align:left;min-height:48px;font-weight:700;font-size:17px}
+.sec-t .cv{display:inline-block;transition:transform .2s;color:var(--muted);font-size:14px;width:12px}
+.sec:not(.collapsed) .sec-t .cv{transform:rotate(90deg)}
+.cnt{font-weight:500;color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+.sec.complete .sec-t,.sec.complete .cnt{color:var(--green)}
+.sec.collapsed .rows{display:none}
+.boxbtn{width:56px;height:52px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+
+/* checkbox look */
+.box{width:var(--box-size);height:var(--box-size);border:2.5px solid var(--box);border-radius:8px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;transition:background .12s,border-color .12s}
+.box::after{content:"";font-weight:800;color:#fff;font-size:calc(var(--box-size)*.62);line-height:1}
+.done .box,.box.all{background:var(--green);border-color:var(--green)}
+.done .box::after,.box.all::after{content:"✓"}
+.box.some{border-color:var(--green)}
+.box.some::after{content:"–";color:var(--green)}
+
+/* item row */
+.row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:8px 10px 8px 14px;min-height:var(--row-min);
+  border-bottom:1px solid var(--line);font-size:var(--row-font);transition:background .12s}
+.row:last-child{border-bottom:0}
+.row .ch{flex:1;min-width:0}
+.row .re{font-weight:700;text-align:right;max-width:48%}
+.row.done{background:var(--done-bg)}
+.row.done .ch,.row.done .re{color:var(--done-text);text-decoration:line-through;text-decoration-thickness:1.5px}
+.emer .row .re{color:var(--red)}
+.emer .row.done .re{color:var(--done-text)}
+.row:active{filter:brightness(.95)}
+
+/* ---------- checklist (wide: iPad) ---------- */
+body.wide #app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.split{flex:1;display:grid;grid-template-columns:minmax(250px,30%) 1fr;min-height:0}
+.side{overflow-y:auto;border-right:1px solid var(--line);background:var(--card);padding-bottom:calc(env(safe-area-inset-bottom) + 20px);padding-left:env(safe-area-inset-left)}
+.side .sum{padding:12px 14px}
+.side-i{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-left:14px}
+.side-i.cur{background:var(--sel);box-shadow:inset 4px 0 0 var(--accent)}
+.side-i .go{flex:1;text-align:left;min-height:58px;display:flex;flex-direction:column;justify-content:center;font-size:17px;font-weight:600}
+.side-i.complete .go{color:var(--green)}
+.side-i .boxbtn{--box-size:30px}
+.pane{overflow-y:auto;display:flex;flex-direction:column;padding:16px calc(env(safe-area-inset-right) + 20px) 0 20px}
+.pane .sec{margin:0 0 16px;scroll-margin-top:0;flex-shrink:0}
+.pane .sec-h{min-height:68px;padding-left:18px}
+.pane .sec-t{font-size:24px}
+.pane .cnt{font-size:18px}
+.pane .boxbtn{width:68px;height:64px;--box-size:42px}
+.pane{--row-font:23px;--row-min:72px;--box-size:42px}
+.pane .row{padding-left:18px;gap:16px}
+.pager{position:sticky;bottom:0;margin-top:auto;display:flex;gap:12px;padding:12px 0 calc(env(safe-area-inset-bottom) + 14px);background:var(--bg)}
+.pager button{flex:1;background:var(--card);border-radius:14px;padding:16px;font-size:18px;color:var(--accent);text-align:center;min-height:64px}
+.pager button:disabled{opacity:.35}
+.pager .sub{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+
+/* ---------- editor ---------- */
+.ed-sec{background:var(--card);border-radius:14px;padding:12px;margin:12px 0}
+.ed-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}
+.ed-row .f{flex:1;display:flex;flex-direction:column;gap:6px}
+.ed-ctl{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end}
+.ed-ctl button{min-width:40px;min-height:40px;border-radius:9px;font-size:18px;color:var(--accent)}
+.ed-ctl button.del{color:var(--red)}
+.ed-ctl button:disabled{opacity:.3}
+.sec-title-in{font-weight:700;font-size:18px}
+label.chk{display:flex;align-items:center;gap:10px;padding:12px 4px;font-size:17px}
+label.chk input{width:24px;height:24px}
+
+/* ---------- dialog ---------- */
+.dlg-back{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.dlg{background:var(--card);border-radius:16px;max-width:420px;width:100%;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.dlg h3{margin:0 0 8px;font-size:18px}
+.dlg p{margin:0 0 16px;color:var(--muted);font-size:15px}
+.dlg .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+.dlg .acts button{padding:12px 16px;border-radius:10px;font-size:16px;color:var(--accent);background:var(--sel)}
+.dlg .acts button.danger{background:var(--red);color:#fff}
+.dlg .acts button.primary{background:var(--accent);color:#fff}
+.dlg textarea{min-height:140px;font:13px ui-monospace,Menlo,monospace}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 24px);transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:12px;z-index:60;font-size:15px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<input type="file" id="file-in" accept=".json,application/json" hidden>
+
+<script>
+"use strict";
+/* ============================================================
+   Starter content – generic, NOT the approved checklists.
+   Verify every item against the POH/AFM and the club checklist.
+   ============================================================ */
+const SAMPLES = [
+ { reg:"G-CMCZ", type:"Piper PA-28-181 Archer III", checklists:[
+  { title:"Normal procedures", emergency:false, sections:[
+   ["Cabin preflight",[["Documents / tech log","ON BOARD, CHECKED"],["Control lock","REMOVED"],["Magnetos","OFF, KEY OUT"],["Master switch","ON"],["Fuel gauges","CHECK QUANTITY"],["Lights","CHECK"],["Stall warner / pitot heat","CHECK"],["Flaps","EXTEND"],["Master switch","OFF"],["Fuel selector","ON – FULLEST TANK"]]],
+   ["External walk-round",[["Fuel – visual quantity & caps","CHECKED, SECURE"],["Fuel drains (3)","SAMPLED"],["Oil level & dipstick","CHECKED, SECURE"],["Propeller & spinner","CHECK"],["Air intake & cowlings","CLEAR, SECURE"],["Tyres, brakes, oleos","CHECK"],["Control surfaces & hinges","CHECK"],["Pitot cover","REMOVED"],["Static vents","CLEAR"],["Tie-downs & chocks","REMOVED"]]],
+   ["Before engine start",[["Seats & harnesses","ADJUSTED, SECURE"],["Doors","CLOSED & LATCHED"],["Parking brake","SET"],["Circuit breakers","IN"],["Avionics master","OFF"],["Fuel selector","DESIRED TANK"],["Carb heat","COLD"]]],
+   ["Engine start",[["Throttle","OPEN ½ INCH"],["Mixture","FULL RICH"],["Master switch","ON"],["Beacon","ON"],["Electric fuel pump","ON"],["Primer","AS REQUIRED, LOCKED"],["Propeller area","CLEAR"],["Starter","ENGAGE"],["Throttle","1000 RPM"],["Oil pressure","RISING WITHIN 30 SEC"]]],
+   ["After start",[["Ammeter","CHARGING"],["Electric fuel pump","OFF – CHECK PRESSURE"],["Avionics master","ON"],["Radios & transponder","SET"],["ATIS / altimeter","OBTAINED / SET"],["Flaps","UP"]]],
+   ["Taxi",[["Brakes","CHECK"],["Instruments – turn coordinator, DI, AI, compass","CHECK"]]],
+   ["Engine run-up",[["Parking brake","SET"],["Fuel selector","FULLEST TANK"],["Mixture","FULL RICH"],["Throttle","2000 RPM"],["Magnetos","CHECK DROP & DIFFERENCE"],["Carb heat","CHECK – DROP, THEN COLD"],["Suction","CHECK GREEN"],["Oil temperature & pressure","GREEN"],["Ammeter","CHECK"],["Throttle – idle check","SMOOTH"],["Throttle","1000 RPM"]]],
+   ["Before take-off",[["Trim","TAKE-OFF"],["Throttle friction","SET"],["Mixture","FULL RICH"],["Carb heat","COLD"],["Primer","LOCKED"],["Fuel","FULLEST TANK, PUMP ON, PRESSURE CHECK"],["Flaps","SET"],["Instruments & DI","SET / ALIGNED"],["Hatches & harnesses","SECURE"],["Controls","FULL & FREE"],["Transponder","ALT"],["Landing light / strobes","ON"],["Take-off brief","COMPLETE"]]],
+   ["After take-off / climb",[["Flaps","UP"],["Electric fuel pump","OFF – CHECK PRESSURE"],["Temperatures & pressures","CHECK"]]],
+   ["Cruise – FREDA",[["Fuel – tank, quantity, pump","CHECK"],["Radio","FREQUENCY SET"],["Engine – Ts & Ps, carb heat","CHECK"],["DI","SYNCHRONISED"],["Altimeter","SET"]]],
+   ["Before landing",[["Brakes","OFF"],["Mixture","FULL RICH"],["Fuel","FULLEST TANK, PUMP ON"],["Harnesses & hatches","SECURE"],["Carb heat","AS REQUIRED"],["Landing light","ON"],["Flaps","AS REQUIRED"]]],
+   ["After landing",[["Flaps","UP"],["Carb heat","COLD"],["Electric fuel pump","OFF"],["Landing light / strobes","OFF"]]],
+   ["Shutdown",[["Parking brake","SET"],["Throttle","1000 RPM"],["Avionics master","OFF"],["Electrical equipment","OFF"],["Magnetos – dead cut check","CHECKED"],["Mixture","IDLE CUT-OFF"],["Magnetos","OFF, KEY OUT"],["Master switch","OFF"],["Control lock / tie-downs","FITTED"],["Tech log","COMPLETED"]]]
+  ]},
+  { title:"Emergency procedures", emergency:true, sections:[
+   ["Engine fire during start",[["Starter","CONTINUE CRANKING"],["Mixture","IDLE CUT-OFF"],["Throttle","FULL OPEN"],["Electric fuel pump","OFF"],["Fuel selector","OFF"],["If fire persists","EVACUATE, USE EXTINGUISHER"]]],
+   ["Engine failure after take-off",[["Airspeed","BEST GLIDE"],["Landing area","AHEAD ±30°"],["Fuel selector","OFF"],["Mixture","IDLE CUT-OFF"],["Magnetos","OFF"],["Flaps","AS REQUIRED"],["Master switch","OFF"]]],
+   ["Engine failure in flight",[["Airspeed","BEST GLIDE"],["Field","SELECT"],["Fuel selector","SWITCH TANKS"],["Electric fuel pump","ON"],["Mixture","RICH"],["Carb heat","HOT"],["Primer","LOCKED"],["Magnetos","LEFT, RIGHT, BOTH"],["If no restart","FORCED LANDING CHECKS"]]],
+   ["Engine fire in flight",[["Fuel selector","OFF"],["Throttle","CLOSED"],["Mixture","IDLE CUT-OFF"],["Electric fuel pump","OFF"],["Heater & defroster","OFF"],["Forced landing","EXECUTE"]]],
+   ["Electrical fire",[["Master switch","OFF"],["Vents","OPEN"],["Cabin heat","OFF"],["Land","AS SOON AS PRACTICABLE"]]]
+  ]}
+ ]},
+ { reg:"G-CIRI", type:"Cirrus SR20 G2 (Avidyne Entegra)", checklists:[
+  { title:"Normal procedures", emergency:false, sections:[
+   ["Cabin preflight",[["Documents / tech log","ON BOARD, CHECKED"],["CAPS handle","PIN REMOVED"],["Circuit breakers","IN"],["Ignition","OFF, KEY OUT"],["Bat 1 & 2","ON"],["Fuel quantity","CHECK"],["Lights","CHECK"],["Flaps","100%"],["Stall warning / pitot heat","CHECK"],["Bat 1 & 2","OFF"],["Alternate static","NORMAL"],["Fire extinguisher","SECURE, CHARGED"]]],
+   ["External walk-round",[["Fuel – visual quantity & caps","CHECKED, SECURE"],["Fuel drains","SAMPLED"],["Oil level & dipstick","CHECKED, SECURE"],["Propeller & spinner","CHECK"],["Cowlings & intakes","SECURE, CLEAR"],["Tyres, brakes, fairings","CHECK"],["Control surfaces & hinges","CHECK"],["Pitot cover","REMOVED"],["Static ports","CLEAR"],["CAPS cover","INTACT"],["Tow bar / chocks / tie-downs","REMOVED"]]],
+   ["Before engine start",[["Seats & harnesses","ADJUSTED, SECURE"],["Doors","LATCHED"],["Brakes","HOLD"],["Avionics master","OFF"],["Fuel selector","FULLEST TANK"],["Alternate air","OFF"]]],
+   ["Engine start",[["Bat 1 & 2","ON"],["Strobes","ON"],["Mixture","FULL RICH"],["Throttle","¼ INCH OPEN"],["Fuel pump","PRIME AS REQUIRED, THEN OFF"],["Propeller area","CLEAR"],["Ignition","START"],["Oil pressure","CHECK"],["Alt 1 & 2","ON"],["Avionics master","ON"],["Engine instruments","CHECK"]]],
+   ["Before taxi",[["ATIS / altimeter","OBTAINED / SET"],["GNS430s – flight plan","LOADED"],["Radios & transponder","SET"],["MFD / PFD","CHECK"],["Flaps","UP"]]],
+   ["Taxi",[["Brakes","CHECK"],["Instruments – PFD attitude, heading, turn","CHECK"]]],
+   ["Engine run-up",[["Brakes","HOLD"],["Fuel selector","FULLEST TANK"],["Fuel pump","BOOST"],["Mixture","AS REQUIRED"],["Throttle","1700 RPM"],["Alternate air","CHECK"],["Magnetos","CHECK DROP & DIFFERENCE"],["Alt 1 & 2 / volts","CHECK"],["Oil temperature & pressure","GREEN"],["Autopilot","TEST"],["Throttle – idle check","SMOOTH"]]],
+   ["Before take-off",[["Doors","LATCHED"],["Harnesses","SECURE"],["CAPS handle","PIN REMOVED"],["Fuel","FULLEST TANK, BOOST ON"],["Mixture","FULL RICH / SET"],["Flaps","50%"],["Trim","TAKE-OFF"],["Autopilot","OFF"],["Flight instruments","SET"],["Controls","FULL & FREE"],["Transponder","ALT"],["Landing light","ON"],["Take-off brief","COMPLETE"]]],
+   ["After take-off / climb",[["Flaps","UP"],["Fuel pump","OFF"],["Engine instruments","CHECK"],["Mixture","AS REQUIRED"]]],
+   ["Cruise",[["Power","SET"],["Mixture","LEAN"],["Fuel","BALANCE TANKS"],["Engine instruments","CHECK"]]],
+   ["Descent / approach",[["ATIS / altimeter","OBTAINED / SET"],["Approach brief","COMPLETE"],["Mixture","AS REQUIRED"]]],
+   ["Before landing",[["Fuel","FULLEST TANK, BOOST ON"],["Mixture","FULL RICH"],["Harnesses","SECURE"],["Autopilot","OFF"],["Landing light","ON"],["Flaps","AS REQUIRED"]]],
+   ["After landing",[["Flaps","UP"],["Fuel pump","OFF"],["Landing light / strobes","AS REQUIRED"]]],
+   ["Shutdown",[["Brakes","HOLD / SET"],["Throttle","IDLE"],["Avionics master","OFF"],["Mixture","CUTOFF"],["Ignition","OFF, KEY OUT"],["Alt 1 & 2","OFF"],["Bat 1 & 2","OFF"],["CAPS handle","PIN INSTALLED"],["Tech log / Hobbs","COMPLETED"]]]
+  ]},
+  { title:"Emergency procedures", emergency:true, sections:[
+   ["Engine failure on take-off roll",[["Throttle","IDLE"],["Brakes","AS REQUIRED"]]],
+   ["Engine failure in flight",[["Airspeed","BEST GLIDE"],["Fuel pump","BOOST"],["Fuel selector","SWITCH TANKS"],["Mixture","RICH"],["Alternate air","ON"],["Ignition","CHECK BOTH"],["If no restart","FORCED LANDING / CONSIDER CAPS"]]],
+   ["Engine fire in flight",[["Mixture","CUTOFF"],["Fuel pump","OFF"],["Fuel selector","OFF"],["Airflow selector","OFF"],["Power lever","IDLE"],["Ignition","OFF"],["Forced landing","EXECUTE"]]],
+   ["Electrical fire in flight",[["Bat & Alt master switches","OFF"],["Vents","OPEN"],["Extinguisher","AS REQUIRED"],["Land","AS SOON AS PRACTICABLE"]]],
+   ["CAPS deployment",[["Activation handle cover","REMOVE"],["Activation handle (both hands)","PULL STRAIGHT DOWN"],["Mixture","CUTOFF"],["Fuel selector","OFF"],["Fuel pump","OFF"],["Bat & Alt master switches","OFF"],["Ignition","OFF"],["ELT","ON"],["Harnesses / loose items","SECURE"],["Emergency landing position","ASSUME"]]]
+  ]}
+ ]}
+];
+
+/* ============================ state ============================ */
+const KEY = "aircraft-checklists.v1";
+const uid = () => (crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+function buildAircraft(a){
+  return { id:uid(), reg:a.reg, type:a.type, checklists:a.checklists.map(c=>({
+    id:uid(), title:c.title, emergency:!!c.emergency,
+    sections:c.sections.map(([t,items])=>({ id:uid(), title:t, items:items.map(([c,r])=>({id:uid(), c, r, done:false})) }))
+  }))};
+}
+function cloneAircraft(a, reg, type){
+  return { id:uid(), reg, type, checklists:a.checklists.map(c=>({ id:uid(), title:c.title, emergency:c.emergency,
+    sections:c.sections.map(s=>({ id:uid(), title:s.title, items:s.items.map(i=>({id:uid(), c:i.c, r:i.r, done:false})) })) })) };
+}
+function freshData(){ return { aircraft:SAMPLES.map(buildAircraft), ui:{ view:"home", theme:"auto", autoAdvance:true, collapsed:{}, cur:{} } }; }
+
+let data;
+try { data = JSON.parse(localStorage.getItem(KEY)); } catch(e) { data = null; }
+if (!data || !Array.isArray(data.aircraft)) data = freshData();
+data.ui = Object.assign({ view:"home", theme:"auto", autoAdvance:true, collapsed:{}, cur:{} }, data.ui || {});
+const ui = data.ui;
+ui.manage = false;
+
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(data)); } catch(e) {} }
+
+const ac  = () => data.aircraft.find(a => a.id === ui.acId);
+const cl  = () => { const a = ac(); return a && a.checklists.find(c => c.id === ui.clId); };
+const sec = id => cl().sections.find(s => s.id === id);
+const doneCount = s => s.items.filter(i => i.done).length;
+const secDone = s => s.items.length > 0 && s.items.every(i => i.done);
+const clCounts = c => { let t=0,d=0; c.sections.forEach(s=>{ t+=s.items.length; d+=doneCount(s); }); return {t,d}; };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+
+/* ============================ layout mode ============================ */
+// Wide (two-pane) layout: iPad in either orientation. Narrow: iPhone, iPhone landscape, iPad Split View/Slide Over.
+const mq = window.matchMedia("(min-width: 700px) and (min-height: 500px)");
+const isWide = () => mq.matches;
+mq.addEventListener ? mq.addEventListener("change", render) : mq.addListener(render);
+
+function applyTheme(){
+  if (ui.theme === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", ui.theme);
+}
+const themeLabel = () => ({auto:"Auto", night:"Night", day:"Day"})[ui.theme];
+
+/* ============================ wake lock ============================ */
+let wakeLock = null;
+async function wantWake(on){
+  try {
+    if (on && "wakeLock" in navigator && !wakeLock && document.visibilityState === "visible") {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch(e) { wakeLock = null; }
+}
+document.addEventListener("visibilitychange", () => { if (ui.view === "checklist") wantWake(true); });
+
+/* ============================ dialogs ============================ */
+function dialog({title, text="", body="", buttons}){
+  return new Promise(resolve => {
+    const back = document.createElement("div");
+    back.className = "dlg-back";
+    back.innerHTML = `<div class="dlg" role="dialog" aria-modal="true"><h3>${esc(title)}</h3>${text?`<p>${esc(text)}</p>`:""}${body}<div class="acts">${
+      buttons.map((b,i)=>`<button data-i="${i}" class="${b.cls||""}">${esc(b.label)}</button>`).join("")}</div></div>`;
+    back.addEventListener("click", e => {
+      const b = e.target.closest("button[data-i]");
+      if (b) { const res = buttons[+b.dataset.i].value; const inputs = [...back.querySelectorAll("input,textarea,select")].map(x=>x.value); back.remove(); resolve({value:res, inputs}); }
+      else if (e.target === back) { back.remove(); resolve({value:null, inputs:[]}); }
+    });
+    document.body.appendChild(back);
+    const f = back.querySelector("input,textarea"); if (f) setTimeout(()=>f.focus(), 50);
+  });
+}
+const confirmBox = async (title, text, label="OK", danger=true) =>
+  (await dialog({title, text, buttons:[{label:"Cancel", value:false},{label, value:true, cls: danger?"danger":"primary"}]})).value === true;
+async function ask(title, placeholder, initial=""){
+  const r = await dialog({title, body:`<input value="${esc(initial)}" placeholder="${esc(placeholder)}">`,
+    buttons:[{label:"Cancel", value:false},{label:"OK", value:true, cls:"primary"}]});
+  return r.value ? r.inputs[0].trim() : null;
+}
+function toast(msg){ const t=document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 1800); }
+
+/* ============================ rendering ============================ */
+const app = document.getElementById("app");
+
+function render(){
+  applyTheme();
+  document.body.classList.toggle("wide", ui.view === "checklist" && isWide());
+  if (ui.view !== "checklist") wantWake(false);
+  if ((ui.view === "aircraft" || ui.view === "addcl") && !ac()) ui.view = "home";
+  if ((ui.view === "checklist" || ui.view === "edit") && !cl()) ui.view = ac() ? "aircraft" : "home";
+  ({home:renderHome, add:renderAdd, aircraft:renderAircraft, checklist:renderChecklist, edit:renderEdit})[ui.view]();
+  save();
+}
+function go(view, patch={}){ Object.assign(ui, patch, {view}); ui.manage = false; render(); window.scrollTo(0,0); }
+
+function bar({left="", title="", right="", cls=""}){
+  return `<header class="bar ${cls}"><div class="left">${left}</div><div class="title">${title}</div><div class="right">${right}</div></header>`;
+}
+
+/* ---------- home: aircraft list ---------- */
+function renderHome(){
+  const list = data.aircraft.map((a,i)=>`
+    <div class="li">
+      <button class="main" data-act="open-ac" data-id="${a.id}" style="text-align:left">
+        <div class="t">✈︎ ${esc(a.reg)}</div><div class="s">${esc(a.type)}</div>
+      </button>
+      ${ui.manage ? `
+        <button class="mini" data-act="ac-up" data-id="${a.id}" ${i===0?"disabled":""}>↑</button>
+        <button class="mini" data-act="ac-down" data-id="${a.id}" ${i===data.aircraft.length-1?"disabled":""}>↓</button>
+        <button class="mini danger" data-act="ac-del" data-id="${a.id}">Delete</button>`
+      : `<span class="chev">›</span>`}
+    </div>`).join("");
+  app.innerHTML = bar({
+      left:`<button class="tb" data-act="manage">${ui.manage?"Done":"Edit"}</button>`,
+      title:"Aircraft",
+      right:`<button class="tb" data-act="theme">${themeLabel()}</button><button class="tb" data-act="go-add" aria-label="Add aircraft" style="font-size:24px;padding:4px 10px">+</button>`}) +
+    `<div class="page">
+      ${data.aircraft.length ? `<div class="group">${list}</div>` : `<p class="note">No aircraft yet – tap + to add one.</p>`}
+      <div class="group-h">Backup &amp; transfer between devices</div>
+      <button class="btn" data-act="export">Export checklists (file)</button>
+      <button class="btn" data-act="copy-json">Copy checklists as text</button>
+      <button class="btn" data-act="import">Import from file…</button>
+      <button class="btn" data-act="paste-json">Import from pasted text…</button>
+      <button class="btn" data-act="restore">Restore sample aircraft</button>
+      <p class="note">Checklists are stored on this device only. After editing on one device, export and AirDrop the file to the other, then import it there.</p>
+      <p class="note">Starter checklists are generic examples – verify every item against the POH/AFM and club checklist before use.</p>
+    </div>`;
+}
+
+/* ---------- add aircraft ---------- */
+function renderAdd(){
+  app.innerHTML = bar({ left:`<button class="tb" data-act="go-home">Cancel</button>`, title:"Add aircraft",
+      right:`<button class="tb" data-act="add-ac" style="font-weight:700">Add</button>` }) +
+    `<div class="page">
+      <div class="group-h">Aircraft</div>
+      <div class="group" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+        <input id="f-reg" placeholder="Registration (e.g. G-ABCD)" autocapitalize="characters" autocomplete="off">
+        <input id="f-type" placeholder="Type (e.g. PA-28-161 Warrior II)">
+      </div>
+      <div class="group-h">Start from</div>
+      <div class="group" style="padding:12px">
+        <select id="f-tpl"><option value="">Blank checklists</option>${data.aircraft.map(a=>`<option value="${a.id}">Copy of ${esc(a.reg)}</option>`).join("")}</select>
+      </div>
+      <p class="note">Copying another aircraft's checklists is a quick start for a similar type – then edit to match this aircraft's POH.</p>
+    </div>`;
+  setTimeout(()=>document.getElementById("f-reg").focus(), 50);
+}
+
+/* ---------- aircraft: checklist list ---------- */
+function renderAircraft(){
+  const a = ac();
+  const list = a.checklists.map((c,i)=>{
+    const {t,d} = clCounts(c);
+    const badge = t && d===t ? `<span class="badge ok">✓ Done</span>` : d ? `<span class="badge">${d}/${t}</span>` : "";
+    return `<div class="li ${c.emergency?"emer":""}">
+      <button class="main" data-act="open-cl" data-id="${c.id}" style="text-align:left">
+        <div class="t">${c.emergency?"⚠︎ ":""}${esc(c.title)}</div><div class="s">${c.sections.length} sections</div>
+      </button>
+      ${ui.manage ? `
+        <button class="mini" data-act="cl-up" data-id="${c.id}" ${i===0?"disabled":""}>↑</button>
+        <button class="mini" data-act="cl-down" data-id="${c.id}" ${i===a.checklists.length-1?"disabled":""}>↓</button>
+        <button class="mini danger" data-act="cl-del" data-id="${c.id}">Delete</button>`
+      : `${badge}<span class="chev">›</span>`}
+    </div>`;}).join("");
+  app.innerHTML = bar({
+      left:`<button class="tb" data-act="go-home">‹ Aircraft</button>`, title:esc(a.reg),
+      right:`<button class="tb" data-act="manage">${ui.manage?"Done":"Edit"}</button>` }) +
+    `<div class="page">
+      ${ui.manage ? `
+        <div class="group-h">Aircraft details</div>
+        <div class="group" style="padding:12px;display:flex;flex-direction:column;gap:10px">
+          <input data-f="ac-reg" value="${esc(a.reg)}" placeholder="Registration" autocapitalize="characters">
+          <input data-f="ac-type" value="${esc(a.type)}" placeholder="Type">
+        </div>` : `<div class="group-h">${esc(a.type || "Checklists")}</div>`}
+      <div class="group">${list || `<div class="li"><div class="main s">No checklists</div></div>`}</div>
+      <button class="btn" data-act="add-cl">+ Add checklist</button>
+      <button class="btn danger" data-act="new-flight">New flight – untick everything</button>
+      <p class="note">Always verify checklists against the aircraft's approved POH/AFM and any club/operator checklist.</p>
+    </div>`;
+}
+
+/* ---------- checklist ---------- */
+function currentSection(c){
+  let id = ui.cur[c.id];
+  if (!c.sections.some(s => s.id === id)) {
+    const s = c.sections.find(s => !secDone(s)) || c.sections[0];
+    id = s ? s.id : null; ui.cur[c.id] = id;
+  }
+  return id;
+}
+
+function rowHtml(s, it){
+  return `<button class="row ${it.done?"done":""}" data-act="tick" data-sec="${s.id}" data-item="${it.id}" aria-pressed="${it.done}">
+    <span class="ch">${esc(it.c)}</span>${it.r?`<span class="re">${esc(it.r)}</span>`:""}<span class="box"></span></button>`;
+}
+function boxState(s){ return secDone(s) ? "all" : doneCount(s) ? "some" : ""; }
+function secHtml(s, wide){
+  const collapsed = !wide && ui.collapsed[s.id];
+  return `<section class="sec ${collapsed?"collapsed":""} ${secDone(s)?"complete":""}" id="sec-${s.id}" data-secwrap="${s.id}">
+    <div class="sec-h">
+      <button class="sec-t" data-act="${wide?"noop":"collapse"}" data-sec="${s.id}">
+        ${wide?"":`<span class="cv">▶</span>`}<span>${esc(s.title)}</span><span class="cnt" data-cnt="${s.id}">${doneCount(s)}/${s.items.length}</span>
+      </button>
+      <button class="boxbtn" data-act="tick-sec" data-sec="${s.id}" aria-label="Tick or untick whole section"><span class="box ${boxState(s)}" data-box="${s.id}"></span></button>
+    </div>
+    <div class="rows">${s.items.map(it=>rowHtml(s,it)).join("")}</div>
+  </section>`;
+}
+
+function renderChecklist(){
+  const a = ac(), c = cl(), wide = isWide();
+  const {t,d} = clCounts(c);
+  const header = bar({ cls:c.emergency?"emer":"",
+    left:`<button class="tb" data-act="go-aircraft">‹ ${esc(a.reg)}</button>`,
+    title:`${c.emergency?"⚠︎ ":""}${esc(c.title)}`,
+    right:`<button class="tb" data-act="theme" aria-label="Day/night: ${themeLabel()}" style="font-size:20px">${({auto:"◐",night:"☾",day:"☀︎"})[ui.theme]}</button><button class="tb" data-act="reset-cl">Reset</button><button class="tb" data-act="go-edit">Edit</button>` });
+  const prog = `<div class="prog ${t&&d===t?"ok":""}" id="prog"><i style="width:${t?d/t*100:0}%"></i></div>`;
+  const summary = `<div class="sum ${t&&d===t?"ok":""}" id="sum"><b>${t&&d===t?"Checklist complete":`${d} of ${t} items`}</b>
+      <span>Auto-advance <button class="mini" data-act="auto">${ui.autoAdvance?"On":"Off"}</button></span></div>`;
+
+  if (wide) {
+    const curId = currentSection(c);
+    const idx = c.sections.findIndex(s => s.id === curId);
+    const s = c.sections[idx];
+    const prev = c.sections[idx-1], next = c.sections[idx+1];
+    app.innerHTML = header + prog + `<div class="split">
+      <nav class="side">${summary}${c.sections.map(x=>`
+        <div class="side-i ${x.id===curId?"cur":""} ${secDone(x)?"complete":""}" data-sidewrap="${x.id}">
+          <button class="go" data-act="jump" data-sec="${x.id}"><span>${esc(x.title)}</span><span class="cnt" data-cnt="${x.id}">${doneCount(x)}/${x.items.length}</span></button>
+          <button class="boxbtn" data-act="tick-sec" data-sec="${x.id}" aria-label="Tick or untick whole section"><span class="box ${boxState(x)}" data-box="${x.id}"></span></button>
+        </div>`).join("")}</nav>
+      <div class="pane ${c.emergency?"emer":""}" id="pane">
+        ${s ? secHtml(s, true) : `<p class="note">This checklist is empty – tap Edit to add sections.</p>`}
+        <div class="pager">
+          <button data-act="jump" data-sec="${prev?prev.id:""}" ${prev?"":"disabled"}>‹ Previous<span class="sub">${prev?esc(prev.title):"&nbsp;"}</span></button>
+          <button data-act="jump" data-sec="${next?next.id:""}" ${next?"":"disabled"}>Next ›<span class="sub">${next?esc(next.title):"&nbsp;"}</span></button>
+        </div>
+      </div></div>`;
+  } else {
+    app.innerHTML = header + prog + `<div class="cl ${c.emergency?"emer":""}">${summary}${c.sections.map(s=>secHtml(s,false)).join("")}
+      ${c.sections.length?"":`<p class="note">This checklist is empty – tap Edit to add sections.</p>`}</div>`;
+  }
+  wantWake(true);
+}
+
+/* targeted updates – keep scroll position while ticking */
+function refreshSection(s){
+  const done = secDone(s);
+  document.querySelectorAll(`[data-cnt="${s.id}"]`).forEach(e => e.textContent = `${doneCount(s)}/${s.items.length}`);
+  document.querySelectorAll(`[data-box="${s.id}"]`).forEach(e => { e.classList.toggle("all", done); e.classList.toggle("some", !done && doneCount(s)>0); });
+  document.querySelectorAll(`[data-secwrap="${s.id}"],[data-sidewrap="${s.id}"]`).forEach(e => e.classList.toggle("complete", done));
+  s.items.forEach(it => { const r = document.querySelector(`.row[data-item="${it.id}"]`); if (r) { r.classList.toggle("done", it.done); r.setAttribute("aria-pressed", it.done); } });
+}
+function refreshProgress(){
+  const {t,d} = clCounts(cl());
+  const p = document.getElementById("prog"), sm = document.getElementById("sum");
+  if (p) { p.firstElementChild.style.width = `${t?d/t*100:0}%`; p.classList.toggle("ok", t>0 && d===t); }
+  if (sm) { sm.classList.toggle("ok", t>0 && d===t); sm.querySelector("b").textContent = t&&d===t ? "Checklist complete" : `${d} of ${t} items`; }
+}
+
+let advanceTimer = null;
+function sectionCompleted(s){
+  if (!ui.autoAdvance) return;
+  clearTimeout(advanceTimer);
+  advanceTimer = setTimeout(() => {
+    if (ui.view !== "checklist" || !secDone(s)) return;
+    const c = cl(); const i = c.sections.indexOf(s);
+    const next = c.sections.slice(i+1).find(x => !secDone(x));
+    if (isWide()) {
+      if (ui.cur[c.id] === s.id && next) { ui.cur[c.id] = next.id; save(); renderChecklist(); document.getElementById("pane").scrollTop = 0; }
+    } else {
+      ui.collapsed[s.id] = true; save();
+      const el = document.getElementById("sec-"+s.id); if (el) el.classList.add("collapsed");
+      if (next) { const n = document.getElementById("sec-"+next.id); if (n) { n.classList.remove("collapsed"); delete ui.collapsed[next.id]; n.scrollIntoView({behavior:"smooth", block:"start"}); } }
+    }
+  }, 600);
+}
+function sectionReopened(s){
+  if (ui.collapsed[s.id]) { delete ui.collapsed[s.id]; const el = document.getElementById("sec-"+s.id); if (el) el.classList.remove("collapsed"); }
+}
+
+/* ---------- editor ---------- */
+function renderEdit(){
+  const c = cl();
+  app.innerHTML = bar({ left:`<span></span>`, title:"Edit checklist",
+      right:`<button class="tb" data-act="go-checklist" style="font-weight:700">Done</button>` }) +
+    `<div class="page">
+      <div class="ed-sec">
+        <input data-f="cl-title" value="${esc(c.title)}" placeholder="Checklist title" class="sec-title-in">
+        <label class="chk"><input type="checkbox" data-f="cl-emer" ${c.emergency?"checked":""}> Emergency checklist (shown in red)</label>
+      </div>
+      ${c.sections.map((s,si)=>`
+        <div class="ed-sec">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input data-f="sec-title" data-sec="${s.id}" value="${esc(s.title)}" placeholder="Section title" class="sec-title-in">
+            <div class="ed-ctl">
+              <button data-act="sec-up" data-sec="${s.id}" ${si===0?"disabled":""} aria-label="Move section up">↑</button>
+              <button data-act="sec-down" data-sec="${s.id}" ${si===c.sections.length-1?"disabled":""} aria-label="Move section down">↓</button>
+              <button class="del" data-act="sec-del" data-sec="${s.id}" aria-label="Delete section">🗑</button>
+            </div>
+          </div>
+          ${s.items.map((it,ii)=>`
+            <div class="ed-row">
+              <div class="f">
+                <input data-f="item-c" data-sec="${s.id}" data-item="${it.id}" value="${esc(it.c)}" placeholder="Item (e.g. Fuel selector)">
+                <input data-f="item-r" data-sec="${s.id}" data-item="${it.id}" value="${esc(it.r)}" placeholder="Response (e.g. BOTH)" autocapitalize="characters">
+              </div>
+              <div class="ed-ctl" style="flex-direction:column">
+                <button data-act="item-up" data-sec="${s.id}" data-item="${it.id}" ${ii===0?"disabled":""} aria-label="Move up">↑</button>
+                <button data-act="item-down" data-sec="${s.id}" data-item="${it.id}" ${ii===s.items.length-1?"disabled":""} aria-label="Move down">↓</button>
+                <button class="del" data-act="item-del" data-sec="${s.id}" data-item="${it.id}" aria-label="Delete item">✕</button>
+              </div>
+            </div>`).join("")}
+          <button class="mini" data-act="item-add" data-sec="${s.id}" style="margin-top:6px">+ Add item</button>
+        </div>`).join("")}
+      <button class="btn" data-act="sec-add">+ Add section</button>
+    </div>`;
+}
+
+/* ============================ actions ============================ */
+const move = (arr, i, d) => { const j=i+d; if (j<0||j>=arr.length) return; [arr[i],arr[j]]=[arr[j],arr[i]]; };
+
+function exportJSON(){ return JSON.stringify({ app:"aircraft-checklists", version:1, aircraft:data.aircraft }, null, 2); }
+function importJSON(text){
+  let obj; try { obj = JSON.parse(text); } catch(e) { toast("That isn't valid checklist data"); return false; }
+  const list = Array.isArray(obj) ? obj : obj && obj.aircraft;
+  if (!Array.isArray(list) || !list.every(a => a && a.reg && Array.isArray(a.checklists))) { toast("That isn't valid checklist data"); return false; }
+  data.aircraft = list; ui.cur = {}; ui.collapsed = {}; go("home"); toast(`Imported ${list.length} aircraft`); return true;
+}
+
+app.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
+  const act = b.dataset.act, id = b.dataset.id, sid = b.dataset.sec, iid = b.dataset.item;
+  const a = ac(), c = cl();
+
+  switch (act) {
+    /* navigation */
+    case "go-home": go("home"); break;
+    case "go-add": go("add"); break;
+    case "go-aircraft": go("aircraft"); break;
+    case "go-checklist": go("checklist"); break;
+    case "go-edit": go("edit"); break;
+    case "open-ac": go("aircraft", {acId:id}); break;
+    case "open-cl": go("checklist", {clId:id}); break;
+    case "manage": ui.manage = !ui.manage; render(); break;
+    case "theme": ui.theme = ({auto:"night", night:"day", day:"auto"})[ui.theme]; render(); break;
+    case "auto": ui.autoAdvance = !ui.autoAdvance; b.textContent = ui.autoAdvance ? "On" : "Off"; save(); break;
+    case "noop": break;
+
+    /* ticking */
+    case "tick": {
+      const s = sec(sid), it = s.items.find(x => x.id === iid);
+      const was = secDone(s); it.done = !it.done; save();
+      refreshSection(s); refreshProgress();
+      if (!was && secDone(s)) sectionCompleted(s); else if (was && !secDone(s)) sectionReopened(s);
+      break; }
+    case "tick-sec": {
+      const s = sec(sid); if (!s.items.length) break;
+      const was = secDone(s); s.items.forEach(x => x.done = !was); save();
+      refreshSection(s); refreshProgress();
+      if (!was) sectionCompleted(s); else sectionReopened(s);
+      break; }
+    case "collapse": {
+      if (ui.collapsed[sid]) delete ui.collapsed[sid]; else ui.collapsed[sid] = true; save();
+      document.getElementById("sec-"+sid).classList.toggle("collapsed", !!ui.collapsed[sid]);
+      break; }
+    case "jump": if (sid) { clearTimeout(advanceTimer); ui.cur[c.id] = sid; save(); renderChecklist(); const p=document.getElementById("pane"); if (p) p.scrollTop=0; } break;
+    case "reset-cl":
+      if (await confirmBox("Reset this checklist?", "Every item will be unticked.", "Reset")) {
+        c.sections.forEach(s => { s.items.forEach(i => i.done=false); delete ui.collapsed[s.id]; });
+        delete ui.cur[c.id]; render(); window.scrollTo(0,0);
+      } break;
+    case "new-flight":
+      if (await confirmBox(`New flight in ${a.reg}?`, "Every item in all of this aircraft's checklists will be unticked.", "Reset all")) {
+        a.checklists.forEach(cc => { cc.sections.forEach(s => { s.items.forEach(i=>i.done=false); delete ui.collapsed[s.id]; }); delete ui.cur[cc.id]; });
+        render(); toast("All checklists reset");
+      } break;
+
+    /* aircraft management */
+    case "add-ac": {
+      const reg = document.getElementById("f-reg").value.trim().toUpperCase();
+      const type = document.getElementById("f-type").value.trim();
+      const tpl = data.aircraft.find(x => x.id === document.getElementById("f-tpl").value);
+      if (!reg) { toast("Enter a registration"); break; }
+      const na = tpl ? cloneAircraft(tpl, reg, type) : { id:uid(), reg, type, checklists:[
+        { id:uid(), title:"Normal procedures", emergency:false, sections:[{id:uid(), title:"Before start", items:[]}] },
+        { id:uid(), title:"Emergency procedures", emergency:true, sections:[{id:uid(), title:"Engine failure", items:[]}] } ] };
+      data.aircraft.push(na); go("aircraft", {acId:na.id}); break; }
+    case "ac-up": case "ac-down": move(data.aircraft, data.aircraft.findIndex(x=>x.id===id), act==="ac-up"?-1:1); render(); break;
+    case "ac-del": {
+      const x = data.aircraft.find(q=>q.id===id);
+      if (await confirmBox(`Delete ${x.reg}?`, "This aircraft and all of its checklists will be removed from this device.", "Delete")) {
+        data.aircraft = data.aircraft.filter(q=>q.id!==id); render(); }
+      break; }
+    case "restore": {
+      const have = new Set(data.aircraft.map(x=>x.reg.toUpperCase()));
+      const add = SAMPLES.filter(s=>!have.has(s.reg)).map(buildAircraft);
+      data.aircraft.push(...add); render(); toast(add.length ? `Restored ${add.map(x=>x.reg).join(", ")}` : "Sample aircraft already present"); break; }
+
+    /* checklist management */
+    case "add-cl": {
+      const t = await ask("New checklist", "e.g. Normal procedures");
+      if (t) { a.checklists.push({ id:uid(), title:t, emergency:false, sections:[{id:uid(), title:"New section", items:[]}] }); render(); }
+      break; }
+    case "cl-up": case "cl-down": move(a.checklists, a.checklists.findIndex(x=>x.id===id), act==="cl-up"?-1:1); render(); break;
+    case "cl-del": {
+      const x = a.checklists.find(q=>q.id===id);
+      if (await confirmBox(`Delete "${x.title}"?`, "This checklist will be removed.", "Delete")) { a.checklists = a.checklists.filter(q=>q.id!==id); render(); }
+      break; }
+
+    /* editor */
+    case "sec-add": c.sections.push({ id:uid(), title:"New section", items:[] }); renderEdit(); save(); window.scrollTo(0, document.body.scrollHeight); break;
+    case "sec-up": case "sec-down": move(c.sections, c.sections.findIndex(s=>s.id===sid), act==="sec-up"?-1:1); renderEdit(); save(); break;
+    case "sec-del": {
+      const s = sec(sid);
+      if (await confirmBox(`Delete section "${s.title}"?`, `Its ${s.items.length} items will be removed too.`, "Delete")) { c.sections = c.sections.filter(x=>x.id!==sid); renderEdit(); save(); }
+      break; }
+    case "item-add": { const s = sec(sid); const it = {id:uid(), c:"", r:"", done:false}; s.items.push(it); renderEdit(); save();
+      const f = document.querySelector(`input[data-f="item-c"][data-item="${it.id}"]`); if (f) f.focus(); break; }
+    case "item-up": case "item-down": { const s = sec(sid); move(s.items, s.items.findIndex(i=>i.id===iid), act==="item-up"?-1:1); renderEdit(); save(); break; }
+    case "item-del": { const s = sec(sid); s.items = s.items.filter(i=>i.id!==iid); renderEdit(); save(); break; }
+
+    /* backup */
+    case "export": {
+      const json = exportJSON();
+      const file = new File([json], `aircraft-checklists-${new Date().toISOString().slice(0,10)}.json`, {type:"application/json"});
+      try {
+        if (navigator.canShare && navigator.canShare({files:[file]})) { await navigator.share({files:[file], title:"Aircraft checklists"}); break; }
+      } catch(err) { if (err && err.name === "AbortError") break; }
+      try {
+        const url = URL.createObjectURL(file); const l = document.createElement("a"); l.href = url; l.download = file.name;
+        document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000);
+        toast("Export started");
+      } catch(err) { toast("Export blocked here – use Copy as text"); }
+      break; }
+    case "copy-json":
+      try { await navigator.clipboard.writeText(exportJSON()); toast("Copied – paste into Notes/Messages to transfer"); }
+      catch(err) { await dialog({ title:"Copy this text", body:`<textarea readonly>${esc(exportJSON())}</textarea>`, buttons:[{label:"Close", value:true}] }); }
+      break;
+    case "import": document.getElementById("file-in").click(); break;
+    case "paste-json": {
+      const r = await dialog({ title:"Import checklists", text:"Paste exported checklist text. This replaces the aircraft and checklists on this device.",
+        body:`<textarea placeholder='{"app":"aircraft-checklists", …}'></textarea>`, buttons:[{label:"Cancel", value:false},{label:"Import", value:true, cls:"danger"}] });
+      if (r.value) importJSON(r.inputs[0]);
+      break; }
+  }
+});
+
+/* live edits from text inputs */
+app.addEventListener("input", e => {
+  const f = e.target.dataset && e.target.dataset.f; if (!f) return;
+  const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+  const a = ac(), c = cl();
+  if (f === "ac-reg") a.reg = v.toUpperCase();
+  else if (f === "ac-type") a.type = v;
+  else if (f === "cl-title") c.title = v;
+  else if (f === "cl-emer") c.emergency = v;
+  else if (f === "sec-title") sec(e.target.dataset.sec).title = v;
+  else if (f === "item-c" || f === "item-r") { const it = sec(e.target.dataset.sec).items.find(i=>i.id===e.target.dataset.item); it[f==="item-c"?"c":"r"] = v; }
+  save();
+});
+app.addEventListener("change", e => { if (e.target.dataset && e.target.dataset.f === "cl-emer") { cl().emergency = e.target.checked; save(); } });
+app.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.id === "f-reg") document.getElementById("f-type").focus(); });
+
+document.getElementById("file-in").addEventListener("change", async e => {
+  const file = e.target.files[0]; e.target.value = ""; if (!file) return;
+  if (await confirmBox("Import checklists?", "This replaces the aircraft and checklists on this device with the ones in the file.", "Import")) importJSON(await file.text());
+});
+
+/* offline support when hosted on your own https server */
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+
+render();
+</script>
+</body>
+</html>

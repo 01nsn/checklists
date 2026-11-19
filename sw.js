@@ -1,0 +1,23 @@
+// Offline cache for Aircraft Checklists. Bump CACHE when you upload a new version.
+const CACHE = "acl-v1";
+const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
+
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+});
+self.addEventListener("activate", e => {
+  e.waitUntil(caches.keys()
+    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    .then(() => self.clients.claim()));
+});
+// Serve from cache first (works with no signal), refresh the cache in the background when online.
+self.addEventListener("fetch", e => {
+  if (e.request.method !== "GET") return;
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(cached => {
+    const network = fetch(e.request).then(resp => {
+      if (resp && resp.ok) { const copy = resp.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+      return resp;
+    }).catch(() => cached);
+    return cached || network;
+  }));
+});
