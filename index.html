@@ -145,6 +145,16 @@ body.wide #app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 .ed-ctl button{min-width:40px;min-height:40px;border-radius:9px;font-size:18px;color:var(--accent)}
 .ed-ctl button.del{color:var(--red)}
 .ed-ctl button:disabled{opacity:.3}
+.ed-items{min-height:8px}
+.ed-row{background:var(--card)}
+.handle{flex:0 0 auto;width:40px;min-height:84px;display:flex;align-items:center;justify-content:center;cursor:grab;touch-action:none;border-radius:9px;color:var(--muted)}
+.handle span,.handle span::before,.handle span::after{display:block;width:20px;height:2.5px;border-radius:2px;background:currentColor;position:relative}
+.handle span::before,.handle span::after{content:"";position:absolute;left:0}
+.handle span::before{top:-7px}.handle span::after{top:7px}
+.handle:active{background:var(--sel)}
+.ed-row.dragging{position:fixed;z-index:40;box-shadow:0 10px 30px rgba(0,0,0,.28);border-radius:12px;padding:8px 10px;border-top:0;pointer-events:none;opacity:.96}
+.ed-ph{border:2px dashed var(--accent);border-radius:12px;margin:4px 0;background:var(--sel)}
+body.drag-active{user-select:none;-webkit-user-select:none}
 .sec-title-in{font-weight:700;font-size:18px}
 label.chk{display:flex;align-items:center;gap:10px;padding:12px 4px;font-size:17px}
 label.chk input{width:24px;height:24px}
@@ -606,21 +616,21 @@ function renderEdit(){
               <button class="del" data-act="sec-del" data-sec="${s.id}" aria-label="Delete section">🗑</button>
             </div>
           </div>
-          ${s.items.map((it,ii)=>`
-            <div class="ed-row">
+          <div class="ed-items" data-sec="${s.id}">${s.items.map((it,ii)=>`
+            <div class="ed-row" data-sec="${s.id}" data-item="${it.id}">
+              <button class="handle" data-drag aria-label="Drag to reorder" title="Drag to reorder"><span></span></button>
               <div class="f">
                 <input data-f="item-c" data-sec="${s.id}" data-item="${it.id}" value="${esc(it.c)}" placeholder="Item (e.g. Fuel selector)">
                 <input data-f="item-r" data-sec="${s.id}" data-item="${it.id}" value="${esc(it.r)}" placeholder="Response (e.g. BOTH)" autocapitalize="characters">
               </div>
-              <div class="ed-ctl" style="flex-direction:column">
-                <button data-act="item-up" data-sec="${s.id}" data-item="${it.id}" ${ii===0?"disabled":""} aria-label="Move up">↑</button>
-                <button data-act="item-down" data-sec="${s.id}" data-item="${it.id}" ${ii===s.items.length-1?"disabled":""} aria-label="Move down">↓</button>
+              <div class="ed-ctl">
                 <button class="del" data-act="item-del" data-sec="${s.id}" data-item="${it.id}" aria-label="Delete item">✕</button>
               </div>
-            </div>`).join("")}
+            </div>`).join("")}</div>
           <button class="mini" data-act="item-add" data-sec="${s.id}" style="margin-top:6px">+ Add item</button>
         </div>`).join("")}
       <button class="btn" data-act="sec-add">+ Add section</button>
+      <p class="note">Drag the ≡ handle to move an item – within its section or into another one.</p>
     </div>`;
 }
 
@@ -752,6 +762,65 @@ app.addEventListener("click", async e => {
       break; }
   }
 });
+
+/* ---------- drag-and-drop reordering of items in the editor (touch + mouse) ---------- */
+let drag = null;
+app.addEventListener("pointerdown", e => {
+  const h = e.target.closest("[data-drag]"); if (!h || ui.view !== "edit") return;
+  e.preventDefault();
+  const row = h.closest(".ed-row"), r = row.getBoundingClientRect();
+  const ph = document.createElement("div"); ph.className = "ed-ph"; ph.style.height = r.height + "px";
+  row.parentNode.insertBefore(ph, row);
+  row.classList.add("dragging");
+  Object.assign(row.style, { left:r.left+"px", top:r.top+"px", width:r.width+"px" });
+  document.body.classList.add("drag-active");
+  drag = { row, ph, h, id:pointerId(e), offY:e.clientY - r.top, y:e.clientY, raf:0 };
+  try { h.setPointerCapture(e.pointerId); } catch(err) {}
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  drag.raf = requestAnimationFrame(dragTick);
+});
+function pointerId(e){ return e.pointerId; }
+function placePlaceholder(y){
+  // pick the item list nearest the finger, then the slot within it
+  const lists = [...app.querySelectorAll(".ed-items")];
+  let best = null, bestDist = Infinity;
+  for (const l of lists) {
+    const r = l.getBoundingClientRect();
+    const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    if (d < bestDist) { bestDist = d; best = l; }
+  }
+  if (!best) return;
+  const rows = [...best.querySelectorAll(".ed-row:not(.dragging)")];
+  const before = rows.find(x => { const r = x.getBoundingClientRect(); return y < r.top + r.height/2; });
+  if (before) { if (drag.ph.nextSibling !== before) best.insertBefore(drag.ph, before); }
+  else if (best.lastElementChild !== drag.ph) best.appendChild(drag.ph);
+}
+function dragTick(){
+  if (!drag) return;
+  const edge = 90, vh = window.innerHeight;
+  if (drag.y < edge) window.scrollBy(0, -Math.ceil((edge - drag.y) / 6));
+  else if (drag.y > vh - edge) window.scrollBy(0, Math.ceil((drag.y - (vh - edge)) / 6));
+  drag.row.style.top = (drag.y - drag.offY) + "px";
+  placePlaceholder(drag.y);
+  drag.raf = requestAnimationFrame(dragTick);
+}
+app.addEventListener("pointermove", e => { if (drag && e.pointerId === drag.id) { e.preventDefault(); drag.y = e.clientY; } });
+function endDrag(e){
+  if (!drag || (e && e.pointerId !== drag.id)) return;
+  cancelAnimationFrame(drag.raf);
+  const c = cl(), fromSec = sec(drag.row.dataset.sec), itemId = drag.row.dataset.item;
+  const list = drag.ph.parentNode, toSec = sec(list.dataset.sec);
+  const index = [...list.children].filter(x => x === drag.ph || (x.classList.contains("ed-row") && !x.classList.contains("dragging"))).indexOf(drag.ph);
+  const fromIdx = fromSec.items.findIndex(i => i.id === itemId);
+  const [it] = fromSec.items.splice(fromIdx, 1);
+  toSec.items.splice(Math.max(0, index), 0, it);
+  document.body.classList.remove("drag-active");
+  drag = null; save();
+  const y = window.scrollY; renderEdit(); window.scrollTo(0, y);
+}
+app.addEventListener("pointerup", endDrag);
+app.addEventListener("pointercancel", endDrag);
+app.addEventListener("lostpointercapture", e => { if (drag && e.pointerId === drag.id) endDrag(e); });
 
 /* live edits from text inputs */
 app.addEventListener("input", e => {

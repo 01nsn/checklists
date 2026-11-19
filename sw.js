@@ -1,5 +1,5 @@
 // Offline cache for Aircraft Checklists. Bump CACHE when you upload a new version.
-const CACHE = "acl-v3";
+const CACHE = "acl-v4";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
